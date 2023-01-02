@@ -7,8 +7,7 @@ dtrace: error on enabled probe ID 2 (ID 1208: proc:mach_kernel:__mac_execve:exec
 	invalid address (0x7fff5db18e08) in action #5 at DIF offset 320
 */
  
-proc::posix_spawn:exec-success,proc::__mac_execve:exec-success
-{
+proc::posix_spawn:exec-success,proc::__mac_execve:exec-success {
 	this->isx64=(curproc->p_flag & P_LP64)!=0;
 	#define SELECT_64_86(x64, x86) (this->isx64 ? (x64) : (x86))
 	#define GET_POINTER(base, offset) (user_addr_t)SELECT_64_86(*(uint64_t*)((base)+sizeof(uint64_t)*(offset)), *(uint32_t*)((base)+sizeof(uint32_t)*(offset)))

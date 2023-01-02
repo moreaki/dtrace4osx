@@ -3,6 +3,12 @@ dtrace scripts working on Mavericks and higher
 
 ## Usage
 
+Generally:
+
+```
+% sudo ./src/<scriptname.d>
+```
+
 ### `src/syscall.d`
 
 ```

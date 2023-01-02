@@ -9,8 +9,7 @@ inline int af_inet  =  2; /* AF_INET  */
 inline int af_inet6 = 30; /* AF_INET6 */
 inline const string procname = "nc";
 	
-dtrace:::BEGIN
-{
+dtrace:::BEGIN {
 	/* Add translations as desired from /usr/include/sys/errno.h */
 	err[0]            = "Success";
 	err[EINTR]        = "Interrupted syscall";
@@ -39,15 +38,13 @@ dtrace:::BEGIN
 						 arg7:connid_t *cid);
 */
 
-syscall::connectx:entry
-{
+syscall::connectx:entry {
 	this->s = (struct sockaddr_in *) copyin(arg3, sizeof(struct sockaddr)); 
 	this->f = this->s->sin_family;
 } 
 
 syscall::connectx:entry 
-/ this->f == af_inet && execname == procname / 
-{ 
+/ this->f == af_inet && execname == procname / {
 	this->s = (struct sockaddr_in *) copyin(arg1, sizeof(struct sockaddr)); 
 	self->address = inet_ntop(this->f, (void *) &this->s->sin_addr);
 	self->port = ntohs(this->s->sin_port);
@@ -62,8 +59,7 @@ syscall::connectx:entry
 }
 
 syscall::connectx:entry
-/ this->f == af_inet6 && execname == procname /
-{
+/ this->f == af_inet6 && execname == procname / {
 	this->s6 = (struct sockaddr_in6 *) copyin(arg1, sizeof(struct sockaddr_in6));
 	self->port = ntohs(this->s6->sin6_port);
 	self->address = inet_ntop(this->f, (void *) &this->s6->sin6_addr);
@@ -78,8 +74,7 @@ syscall::connectx:entry
 }
 
 syscall::connectx:return 
-/ self->ts / 
-{ 
+/ self->ts / {
 	this->delta = (timestamp - self->ts) / 1000; 
 	this->errstr = err[errno] != NULL ? err[errno] : lltostr(errno);
 

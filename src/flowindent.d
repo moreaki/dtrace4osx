@@ -10,19 +10,16 @@ BEGIN {
 }
 
 syscall::open:entry
-/execname == "ls" && guard++ == 0/
-{
+/execname == "ls" && guard++ == 0/ {
     self->traceIt = 1;
 }
 
 fbt:::
-/self->traceIt/
-{
+/self->traceIt/ {
 }
 
 syscall:::return
-/self->traceIt/
-{
+/self->traceIt/ {
     self->traceIt = 0;
 	exit(0);
 }

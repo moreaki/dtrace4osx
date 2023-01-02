@@ -1,7 +1,6 @@
 #!/usr/sbin/dtrace -Fs
 
-syscall::open:entry
-{
+syscall::open:entry {
 	/*
 	 * The call to speculation() creates a new speculation.  If this fails,
 	 * dtrace(1M) will generate an error message indicating the reason for
@@ -20,8 +19,7 @@ syscall::open:entry
 }
 
 syscall::open:return
-/self->spec/
-{
+/self->spec/ {
 	/*
 	 * To balance the output with the -F option, we want to be sure that
 	 * every entry has a matching return.  Because we speculated the
@@ -33,8 +31,7 @@ syscall::open:return
 }
 
 syscall::open:return
-/self->spec && errno != 0/
-{
+/self->spec && errno != 0/ {
 	/*
 	 * If errno is non-zero, we want to commit the speculation.
 	 */
@@ -43,8 +40,7 @@ syscall::open:return
 }
 
 syscall::open:return
-/self->spec && errno == 0/
-{
+/self->spec && errno == 0/ {
 	/*
 	 * If errno is not set, we discard the speculation.
 	 */

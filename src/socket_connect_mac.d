@@ -7,8 +7,7 @@
 
 inline int af_inet = 2;		/* AF_INET defined in bsd/sys/socket.h */
 
-dtrace:::BEGIN
-{
+dtrace:::BEGIN {
 	/* Add translations as desired from /usr/include/sys/errno.h */
 	err[0]            = "Success";
 	err[EINTR]        = "Interrupted syscall";
@@ -27,8 +26,7 @@ dtrace:::BEGIN
 	    "ADDRESS", "PORT", "LAT(us)", "RESULT");
 }
 
-syscall::connect*:entry
-{
+syscall::connect*:entry {
 	printf("ENTERING [ENTRY] with %s\n", execname);
 	/* assume this is sockaddr_in until we can examine family */
 	this->s = (struct sockaddr_in *) copyin(arg1, sizeof (struct sockaddr));
@@ -36,8 +34,7 @@ syscall::connect*:entry
 }
 
 syscall::connect*:entry
-/execname == "nc" /
-{
+/execname == "nc" / {
 	printf("ENTERING /execname == nc/ [ENTRY] with %s\n", execname);
 	trace(execname);
 	ustack();
@@ -45,8 +42,7 @@ syscall::connect*:entry
 }
 
 syscall::connect*:entry
-/this->f == af_inet/
-{
+/this->f == af_inet/ {
 	printf("ENTERING /this->f == af_inet/ [ENTRY] with %s\n", execname);
 	self->family = this->f;
 
@@ -70,8 +66,7 @@ syscall::connect*:entry
 
 syscall::connect*:return
 /* /self->start/ */
-/execname == "nc" /
-{
+/execname == "nc" / {
 	printf("ENTERING /execname == nc/ [RETURN] with %s\n", execname);
 	this->delta = (timestamp - self->start) / 1000;
 	this->errstr = err[errno] != NULL ? err[errno] : lltostr(errno);
