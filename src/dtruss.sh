@@ -1,4 +1,5 @@
-#!/usr/bin/env sh
+#!/bin/sh
+# #!/usr/bin/sh
 #
 # dtruss - print process system call time details.
 #          Written using DTrace (Solaris 10 3/05).
@@ -95,6 +96,7 @@ do
 	F)	opt_filter=1 ;;
         h|?)    cat <<-END >&2
 		USAGE: dtruss [-acdefholLFs] [-t syscall] { -p PID | -n name | command | -W name }
+
 		          -p PID          # examine this PID
 		          -n name         # examine this process name
 		          -t syscall      # examine this syscall only
@@ -174,6 +176,7 @@ dtrace='
  inline int PID_OPT       = '$pid';
  inline string NAME       = "'"$pname"'";
  inline string TRACE      = "'$trace'";
+
  dtrace:::BEGIN
  {
 	PID = PID_OPT;
@@ -184,6 +187,7 @@ dtrace='
 	OPT_elapsed  ? printf("%7s ","ELAPSD") : 1;
 	OPT_cpu      ? printf("%6s ","CPU") : 1;
 	printf("SYSCALL(args) \t\t = return\n");
+
 	/* Apple: Names of top-level sysctl MIBs */
 	sysctl_first[0] = "CTL_UNSPEC";
 	sysctl_first[1] = "CTL_KERN";
@@ -194,6 +198,7 @@ dtrace='
 	sysctl_first[6] = "CTL_HW";
 	sysctl_first[7] = "CTL_MACHDEP";
 	sysctl_first[9] = "CTL_MAXID";
+
 	/* globals */
 	/* variables for following child processes.
 	 * trackedpid is indexed by PID; values:
@@ -205,17 +210,23 @@ dtrace='
 	 * process due to its descendence from a traced process. Threads get recycled
 	 * by other processes, so storing the PID here catches that case. */
 	self->child = 0;
+
 	self->follow_in_spawn_call = 0;
  }
+
  dtrace:::BEGIN
  /OPT_command && $1 > 0/
  {
 	PID = $1;
 	system("/bin/kill -CONT %d", $1);
  }
+
+
  /*
   * Save syscall entry info
   */
+
+
  /* Threads seem to be recycled on macOS, including thread-local DTrace
   * variables; check for mismatch between self->child and pid to detect and
   * reset the variables. */
@@ -233,6 +244,7 @@ dtrace='
 	self->arg4 = (uint64_t)0;
 	self->arg5 = (uint64_t)0;
  }
+
  /* MacOS X: notice first appearance of child process´s thread from fork or
   * posix_spawn. Checking the own process for presence in the trackedpid table
   * also catches new threads in child processes whose parent process has died. */
@@ -242,6 +254,7 @@ dtrace='
 	/* set as child */
 	self->child = pid;
  }
+
  /* MacOS X: notice first appearance of child and parent from vfork */
  syscall:::entry
  /OPT_follow && trackedpid[ppid] > 0 && 0 == self->child/
@@ -249,6 +262,7 @@ dtrace='
 	/* set as child */
 	this->vforking_tid = trackedpid[ppid];
 	self->child = (this->vforking_tid == tid) ? 0 : pid;
+
 	/* print output */
 	self->code = errno == 0 ? "" : "Err#";
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
@@ -259,6 +273,7 @@ dtrace='
 	printf("%s()\t\t = %d %s%d\n","vfork",
 	    (this->vforking_tid == tid) ? pid : 0,self->code,(int)errno);
  }
+
  /* Alternative detection of recycled threads: start time stamp is still set,
   * although no tracking criteria are met. Again, reset thread-local variables. */
  syscall:::entry
@@ -279,6 +294,7 @@ dtrace='
 	self->arg4 = (uint64_t)0;
 	self->arg5 = (uint64_t)0;
  }
+
  syscall:::entry
  /(OPT_has_target && pid == $target) ||
   (OPT_pid && pid == PID) ||
@@ -292,9 +308,11 @@ dtrace='
 	self->arg0 = arg0;
 	self->arg1 = arg1;
 	self->arg2 = arg2;
+
 	/* count occurances */
 	OPT_counts == 1 ? @Counts[probefunc] = count() : 1;
  }
+
 /* 4, 5 and 6 arguments */
  syscall::select:entry,
  syscall::mmap:entry,
@@ -303,6 +321,9 @@ dtrace='
  syscall::openat:entry,
  syscall::unlinkat:entry,
  syscall::getattrlistat:entry,
+ syscall::getattrlistbulk:entry,
+ syscall::fstatat:entry,
+ syscall::fstatat64:entry,
  syscall::readlinkat:entry,
  syscall::linkat:entry,
  syscall::fchownat:entry,
@@ -321,6 +342,7 @@ dtrace='
 	self->arg4 = arg4;
 	self->arg5 = arg5;
  }
+
  syscall::posix_spawn:entry
  /(OPT_has_target && pid == $target) ||
   (OPT_pid && pid == PID) ||
@@ -334,6 +356,7 @@ dtrace='
 	self->arg4 = arg4;
 	self->arg5 = arg5;
  }
+
  syscall::execve:entry
  /(OPT_has_target && pid == $target) ||
   (OPT_pid && pid == PID) ||
@@ -347,6 +370,8 @@ dtrace='
 	 * entirely new address space when execve() returns. */
 	self->arg0_str = arg0 ? copyinstr(arg0) : "";
 }
+
+
  /*
   * Follow children
   */
@@ -372,6 +397,7 @@ dtrace='
 	self->child = 0;
 	trackedpid[pid] = 0;
  }
+
  proc::proc_exit:exited
  /tracepid[args[0]->pr_pid] != 0/
  {
@@ -379,7 +405,9 @@ dtrace='
 	self->child = 0;
 	tracepid[args[0]->pr_pid] = 0;
  }
+
  /* Follow posix_spawn()ed child processes */
+
  proc:mach_kernel:posix_spawn:create
  /OPT_follow &&
   ((OPT_has_target && pid == $target) ||
@@ -392,13 +420,16 @@ dtrace='
 	self->follow_posix_spawn_child_pid = args[0]->pr_pid;
 	self->follow_in_spawn_call = 1;
  }
+
  proc::posix_spawn:spawn-success
  /self->follow_in_spawn_call/
  {
 	trackedpid[self->follow_posix_spawn_child_pid] = -1;
+
 	self->follow_posix_spawn_child_pid = 0;
 	self->follow_in_spawn_call = 0;
  }
+
  // If the posix_spawn() call failed, reset our state, ready for the next such call.
 proc::posix_spawn:*-failure
 /self->follow_in_spawn_call/
@@ -406,6 +437,8 @@ proc::posix_spawn:*-failure
 	self->follow_posix_spawn_child_pid = 0;
 	self->follow_in_spawn_call = 0;
 }
+
+
  /*
   * Check for syscall tracing
   */
@@ -422,9 +455,11 @@ proc::posix_spawn:*-failure
 	self->arg4 = (uint64_t)0;
 	self->arg5 = (uint64_t)0;
  }
+
  /*
   * Print return data
   */
+
  /*
   * NOTE:
   *  The following code is written in an intentionally repetetive way.
@@ -433,6 +468,7 @@ proc::posix_spawn:*-failure
   *  are many obvious shortcuts to this code, Ive tried them. This style has
   *  shown in benchmarks to be the fastest (fewest probes, fewest actions).
   */
+
  /* print 3 args, return as hex */
  syscall::sigprocmask:return
  /self->start/
@@ -461,6 +497,7 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* print 3 args, arg0 as a string */
  syscall::stat:return,
  syscall::stat64:return,
@@ -482,8 +519,7 @@ proc::posix_spawn:*-failure
  syscall::setxattr:return,
  syscall::removexattr:return,
  syscall::unlink:return,
- syscall::open:return,
- syscall::open_nocancel:return
+ syscall::shm_open:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -510,6 +546,38 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
+ /* open() takes 2-3 args; arg0 as string, arg2 as octal file mode */
+ syscall::open:return,
+ syscall::open_nocancel:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data; default arg2 to 0 if O_CREAT not set */
+	printf("%s(\"%S\", 0x%X, 0%o)\t\t = %d %s%d\n",probefunc,
+		 self->arg0 ? copyinstr(self->arg0) : "[NULL]",self->arg1,(self->arg1 & 0x0200) ? self->arg2 : 0,(int)arg0,
+		 self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+ }
+
+
  /* print 3 args, arg0 as a string, already copied (due to pid weirdness) */
  syscall::execve:return
  /self->start/
@@ -520,6 +588,7 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	/* For some reason execve:return always reports pid = 0, so print stored value */
@@ -527,6 +596,7 @@ proc::posix_spawn:*-failure
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(\"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
 	    self->arg0_str,self->arg1,self->arg2,(int)arg0,
@@ -539,6 +609,7 @@ proc::posix_spawn:*-failure
 	self->arg0_str = 0;
 	self->execve_self_pid = 0;
  }
+
  /* print 3 args, arg1 as a string, for read/write variant */
  syscall::write:return,
  syscall::write_nocancel:return,
@@ -570,6 +641,7 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* print 3 args, arg1 as a string */
  syscall::mkdirat:return,
  syscall::unlinkat:return
@@ -599,6 +671,7 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* print 3 args, arg0 and arg2 as strings */
  syscall::symlinkat:return
  /self->start/
@@ -609,12 +682,14 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(\"%S\", 0x%X, \"%S\")\t\t = %d %s%d\n",probefunc,
 	    copyinstr(self->arg0), self->arg1, copyinstr(self->arg2), (int)arg0,
@@ -625,6 +700,8 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
+
  /* print 2 args, arg0 and arg1 as strings */
  syscall::rename:return,
  syscall::symlink:return,
@@ -655,6 +732,7 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* print 0 arg output */
  syscall::*fork:return
  /self->start/
@@ -682,6 +760,7 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* Some processes seem to close a huge number of file descriptors they
   * never opened as a precautionary measure, which floods the trace, so
   * hide EBADF. */
@@ -692,14 +771,17 @@ proc::posix_spawn:*-failure
  {
 	self->start = 0;
 	self->vstart = 0;
+
 	OPT_counts == 1 ? @CloseBadFDCounts[pid] = count() : 1;
 	self->arg0 = 0;
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
- /* print 1 arg output */
+
+ /* print 1 decimal arg output */
  syscall::close:return,
- syscall::close_nocancel:return
+ syscall::close_nocancel:return,
+ syscall::fchdir:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -717,7 +799,7 @@ proc::posix_spawn:*-failure
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
 
 	/* print main data */
-	printf("%s(0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
+	printf("%s(%d)\t\t = %d %s%d\n",probefunc,(int)self->arg0,
 	    (int)arg0,self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
@@ -725,6 +807,36 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
+ /* print 1 string arg output */
+ syscall::chdir:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\")\t\t = %d %s%d\n",probefunc,
+		self->arg0 ? copyinstr(self->arg0) : "[NULL]",
+		(int)arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+ }
+
  /* print 2 arg output */
  syscall::utimes:return,
  syscall::munmap:return
@@ -753,6 +865,7 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* print pread/pwrite with 4 arguments */
  syscall::pread*:return,
  syscall::pwrite*:return
@@ -782,12 +895,9 @@ proc::posix_spawn:*-failure
 	self->arg2 = 0;
 	self->arg3 = 0;
  }
- /* print 4 args, arg1 as string */
- syscall::openat:return,
- syscall::faccessat:return,
- syscall::fchmodat:return,
- syscall::readlinkat:return,
- syscall::fstatat:return
+
+ /* print 4 args, arg0 as string, arg1 as string, arg2 as decimal, arg3 as hex */
+ syscall::listxattr:return
  /self->start/
  {
 	/* calculate elapsed time */
@@ -796,15 +906,16 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
-	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
-	printf("%s(0x%X, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
-	    self->arg0, copyinstr(self->arg1),self->arg2,self->arg3,(int)arg0,
+	printf("%s(\"%S\", \"%S\", %u, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    copyinstr(self->arg0), self->arg1 ? copyinstr(self->arg1) : "[NULL]", self->arg2, self->arg3, (int)arg0,
 	    self->code,(int)errno);
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
@@ -813,6 +924,72 @@ proc::posix_spawn:*-failure
 	self->arg2 = 0;
 	self->arg3 = 0;
  }
+
+ /* print 4 args, arg0 as string, arg3 as decimal: int lstat64_extended(user_addr_t path, user_addr_t ub, user_addr_t xsecurity, user_addr_t xsecurity_size) */
+ syscall::lstat64_extended:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(\"%S\", 0x%X, 0x%X, %u)\t\t = %d %s%d\n",probefunc,
+	    copyinstr(self->arg0), self->arg1,self->arg2,self->arg3,(int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+ }
+
+
+ /* print 4 args, arg0 as decimal FD, arg1 as string */
+ syscall::openat:return,
+ syscall::faccessat:return,
+ syscall::fchmodat:return,
+ syscall::readlinkat:return,
+ syscall::fstatat:return,
+ syscall::fstatat64:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(%d%s, \"%S\", 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
+	    (int32_t)self->arg0, self->arg0 == -2 ? " (AT_FDCWD)" : "", copyinstr(self->arg1),self->arg2,self->arg3,(int)arg0,
+	    self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+ }
+
  /* print 4 args, arg1 and arg3 as strings */
  syscall::renameat:return
  /self->start/
@@ -823,12 +1000,14 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(0x%X, \"%S\", 0x%X, \"%S\")\t\t = %d %s%d\n",probefunc,
 		self->arg0, copyinstr(self->arg1), self->arg2, copyinstr(self->arg3), (int)arg0,
@@ -840,6 +1019,7 @@ proc::posix_spawn:*-failure
 	self->arg2 = 0;
 	self->arg3 = 0;
  }
+
  /* Apple: print the arguments passed to sysctl */
  syscall::sysctl:return
  /self->start/
@@ -850,18 +1030,23 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	mib = copyin(self->arg0, self->arg1 * sizeof(int));
 	mib1 = *(int *)mib;
 	mib2 = *((int *)mib + 1);
+
 	printf("%s(", probefunc);
+
 	printf("[%s, ", (self->arg1 > 0) ? ((*(int *)mib > 0 && *(int *)mib < 9) ? sysctl_first[mib1] : "unknown") : 0);
+
 	printf("%d, %d, %d, %d, %d] (%d), ",
 	    (self->arg1 > 1) ? *((int *)mib + 1) : 0,
 	    (self->arg1 > 2) ? *((int *)mib + 2) : 0,
@@ -869,6 +1054,7 @@ proc::posix_spawn:*-failure
 	    (self->arg1 > 4) ? *((int *)mib + 4) : 0,
 	    (self->arg1 > 5) ? *((int *)mib + 5) : 0,
 	    self->arg1);
+
 	printf("0x%X, 0x%X, 0x%X, 0x%X)\t\t = %d %s%d\n",
 	    self->arg2, self->arg3, self->arg4, self->arg5,
 		(int)arg0, self->code, (int)errno);
@@ -881,6 +1067,7 @@ proc::posix_spawn:*-failure
 	self->arg4 = 0;
 	self->arg5 = 0;
  }
+
  /* Apple: print the string provided to sysctlbyname */
  syscall::sysctlbyname:return
  /self->start/
@@ -891,12 +1078,14 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(%s, 0x%X, 0x%X, 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
 	    copyinstr(self->arg0),
@@ -909,6 +1098,7 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
 	self->arg4 = 0;
  }
+
  /* print 5 arguments */
  syscall::kdebug_trace64:return,
  syscall::select:return
@@ -939,6 +1129,7 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
 	self->arg4 = 0;
  }
+
  /* print 5 args, arg1 as string */
  syscall::fchownat:return
  /self->start/
@@ -949,16 +1140,19 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(0x%X, \"%S\", 0x%X, 0x%X, 0x%X)\t\t = %d %s%d\n",probefunc,
 		self->arg0, copyinstr(self->arg1), self->arg2, self->arg3, self->arg4,
 		(int)arg0,self->code,(int)errno);
+
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
 	self->arg0 = 0;
@@ -977,16 +1171,19 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(0x%X, \"%S\", 0x%X, \"%S\", 0x%X)\t\t = %d %s%d\n",probefunc,
 		self->arg0, copyinstr(self->arg1), self->arg2, self->arg3 ? copyinstr(self->arg3) : "", self->arg4,
 		(int)arg0,self->code,(int)errno);
+
 	OPT_stack ? ustack()    : 1;
 	OPT_stack ? trace("\n") : 1;
 	self->arg0 = 0;
@@ -995,6 +1192,48 @@ proc::posix_spawn:*-failure
 	self->arg3 = 0;
 	self->arg4 = 0;
  }
+
+ /* getattrlistbulk has 5 unusual arguments: */
+ syscall::getattrlistbulk:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	this->attrs = (struct attrlist*)(self->arg1 ? copyin(self->arg1, sizeof(struct attrlist)) : NULL);
+	/* print main data */
+	printf("%s(%d, 0x%X { .bitmapcount = %d, .reserved = 0x%x, .commonattr = 0x%x, .volattr = 0x%x, .dirattr = 0x%x, .fileattr = 0x%x, .forkattr = 0x%x }, 0x%X, 0x%X, 0x%X)\t\t = %d %s%d\n", probefunc,
+		(int32_t)self->arg0,
+		// attrlist
+		self->arg1,
+		this->attrs ? this->attrs->bitmapcount : 0,
+		this->attrs ? this->attrs->reserved : 0,
+		this->attrs ? this->attrs->commonattr : 0,
+		this->attrs ? this->attrs->volattr : 0,
+		this->attrs ? this->attrs->dirattr : 0,
+		this->attrs ? this->attrs->fileattr : 0,
+		this->attrs ? this->attrs->forkattr : 0,
+		self->arg2,self->arg3,self->arg4,(int)arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+	self->arg2 = 0;
+	self->arg3 = 0;
+	self->arg4 = 0;
+ }
+
+
  /* getattrlistat has 6 arguments */
  syscall::getattrlistat:return
  /self->start/
@@ -1025,6 +1264,35 @@ proc::posix_spawn:*-failure
 	self->arg4 = 0;
 	self->arg5 = 0;
  }
+
+ /* fstat and fstat64 have 2 args: file descriptor and pointer */
+ syscall::fstat:return,
+ syscall::fstat64:return
+ /self->start/
+ {
+	/* calculate elapsed time */
+	this->elapsed = timestamp - self->start;
+	self->start = 0;
+	this->cpu = vtimestamp - self->vstart;
+	self->vstart = 0;
+	self->code = errno == 0 ? "" : "Err#";
+
+	/* print optional fields */
+	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
+	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
+	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
+	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
+	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
+	/* print main data */
+	printf("%s(%d, 0x%X)\t\t = %d %s%d\n",probefunc,self->arg0,
+	    self->arg1,(int)arg0,self->code,(int)errno);
+	OPT_stack ? ustack()    : 1;
+	OPT_stack ? trace("\n") : 1;
+	self->arg0 = 0;
+	self->arg1 = 0;
+ }
+
  /* kill has 2 args that should be shown as decimal*/
  syscall::kill:return
  /self->start/
@@ -1035,12 +1303,14 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(%d, %d)\t\t = %d %s%d\n",probefunc,self->arg0,
 	    self->arg1,(int)arg0,self->code,(int)errno);
@@ -1049,6 +1319,7 @@ proc::posix_spawn:*-failure
 	self->arg0 = 0;
 	self->arg1 = 0;
  }
+
  /* mmap has 6 arguments */
  syscall::mmap:return
  /self->start/
@@ -1079,6 +1350,7 @@ proc::posix_spawn:*-failure
 	self->arg4 = 0;
 	self->arg5 = 0;
  }
+
  /* posix_spawn has 6 arguments, most of them too complicated to print here,
   * but PID and path are the most useful for tracing anyway. */
  syscall::posix_spawn:return
@@ -1090,12 +1362,14 @@ proc::posix_spawn:*-failure
 	this->cpu = vtimestamp - self->vstart;
 	self->vstart = 0;
 	self->code = errno == 0 ? "" : "Err#";
+
 	/* print optional fields */
 	/* OPT_printid  ? printf("%5d/%d:  ",pid,tid) : 1; */
 	OPT_printid  ? printf("%5d/0x%x:  ",pid,tid) : 1;
 	OPT_relative ? printf("%8d ",vtimestamp/1000) : 1;
 	OPT_elapsed  ? printf("%7d ",this->elapsed/1000) : 1;
 	OPT_cpu      ? printf("%6d ",this->cpu/1000) : 1;
+
 	/* print main data */
 	printf("%s(0x%X -> PID %d, \"%S\" (0x%X), 0x%X, 0x%X, 0x%X, 0x%X)\t\t = 0x%X %s%d\n", probefunc,
 		self->arg0, ((self->arg0 != 0) ? *(pid_t*)copyin(self->arg0, sizeof(pid_t)) : -1),
@@ -1112,6 +1386,9 @@ proc::posix_spawn:*-failure
 	self->arg5 = 0;
 	self->arg1_str = 0;
  }
+
+
+
  /* print 3 arg output - default */
  syscall:::return
  /self->start/
@@ -1139,11 +1416,13 @@ proc::posix_spawn:*-failure
 	self->arg1 = 0;
 	self->arg2 = 0;
  }
+
  /* print counts */
  dtrace:::END
  {
 	OPT_counts == 1 ? printf("\n%-32s %16s\n","CALL","COUNT") : 1;
 	OPT_counts == 1 ? printa("%-32s %@16d\n",@Counts) : 1;
+
 	(OPT_counts == 1 && OPT_filtercommon == 1) ? printf("\n%-7s %16s\n","PID","EBADF CLOSE() COUNT") : 1;
 	(OPT_counts == 1 && OPT_filtercommon == 1) ? printa("%7d %@16d\n", @CloseBadFDCounts) : 1;
  }
