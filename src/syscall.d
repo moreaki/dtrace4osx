@@ -6,9 +6,10 @@ BEGIN {
 	start = timestamp;
 }
 
-syscall:::entry
-/pid == $target/ {
-	@[probefunc] = count();
+syscall:::entry {
+    if (pid == $target) {
+	    @[probefunc] = count();
+	}
 }
 
 END {
