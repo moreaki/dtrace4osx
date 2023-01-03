@@ -30,6 +30,7 @@ Invoke the scripts as follows:
 
 Look at `/usr/bin/dtruss` for a good overview on how to use dtrace.
 
+- https://www.brendangregg.com/blog/2008-02-18/dtracetoolkit-in-macosx.html
 - https://tsuiyuenhong.medium.com/using-dtrace-in-macos-and-ios-simulator-3c3a1ad583f1
 - https://illumos.org/books/dtrace/bookinfo.html#bookinfo
 - http://www.bignerdranch.com/blog/hooked-on-dtrace-part-1/
@@ -43,4 +44,12 @@ Look at `/usr/bin/dtruss` for a good overview on how to use dtrace.
 - https://github.com/opendtrace
 - https://github.com/opensource-apple/dtrace
 - https://www.oracle.com/solaris/technologies/dtrace-tutorial.html
+- https://gitlab.com/pmdj/macos-dtrace-scripts
+- https://poweruser.blog/using-dtrace-with-sip-enabled-3826a352e64b
+- https://github.com/lunixbochs/ghostrace
+- https://github.com/TritonDataCenter/dtruss-osx
+- https://github.com/lundman/dtruss
+- https://github.com/brummett/dtruss
+- https://apple.stackexchange.com/questions/208762/now-that-el-capitan-is-rootless-is-there-any-way-to-get-dtrace-working
+- https://stackoverflow.com/questions/60908765/mac-osx-using-dtruss
 
